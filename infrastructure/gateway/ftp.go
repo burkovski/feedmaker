@@ -2,8 +2,10 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net/textproto"
 	"path"
 	"time"
 
@@ -75,8 +77,19 @@ func (f *FtpGateway) DirExists(dir string) (bool, error) {
 	if err := f.reopenConnIfWasClosed(); err != nil {
 		return false, err
 	}
-	_, err := f.conn.NameList(dir)
-	return err == nil, err
+
+	if _, err := f.conn.NameList(dir); isErrDirectoryNotFound(err) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func isErrDirectoryNotFound(err error) bool {
+	var netErr *textproto.Error
+	return errors.As(err, &netErr) && netErr.Code == 550
 }
 
 func (f *FtpGateway) CleanupDirContent(dir string) error {
